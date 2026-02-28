@@ -195,6 +195,10 @@ def generate_ssh_bruteforce(attacker_count, difficulty, start_time, end_time, ov
     forced_compromised_user = get_override(overrides, 'ssh_compromised_user', None)
     answers['attacker_ips'] = attacker_ips
 
+    # Users that exist on the server — never tagged as "invalid user" by sshd
+    invalid_set = set(SSH_INVALID_USERS)
+    valid_brute_users = [u for u in all_users if u not in invalid_set] or SSH_LEGIT_USERS
+
     attempt_ranges = {'easy': (80, 200), 'medium': (40, 100), 'hard': (15, 50)}
     delay_ranges = {'easy': (1, 3), 'medium': (2, 10), 'hard': (10, 60)}
     att_lo, att_hi = attempt_ranges.get(difficulty, (40, 100))
@@ -295,7 +299,7 @@ def generate_ssh_bruteforce(attacker_count, difficulty, start_time, end_time, ov
                     })
                     dt = dt3
                 else:
-                    user = pick(all_users)
+                    user = pick(valid_brute_users)
                     usernames_tried.append(user)
 
                     lines.append({
