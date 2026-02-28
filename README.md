@@ -1,4 +1,4 @@
-# Pulse Log Forge
+# Pulse Log Generator
 
 A blue team training tool that generates realistic, scenario-based server logs for SOC analysts, DFIR students, and CTF challenge authors. Produce authentic attack logs across six log formats with configurable difficulty levels and built-in answer keys.
 
