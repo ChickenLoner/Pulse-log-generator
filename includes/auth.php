@@ -17,15 +17,22 @@ require_once __DIR__ . '/config.php';
  */
 function generateBruteforce($attackerCount, $difficulty, $startTime, $endTime) {
     $lines = [];
+
+    $loginEndpoint = getOverride('brute_endpoint', '/account/login.php');
+    $successCode = intval(getOverride('brute_success_code', 302));
+
     $answers = [
         'type' => 'HTTP Bruteforce',
-        'target' => '/account/login.php',
+        'target' => $loginEndpoint,
         'attacker_ips' => [],
         'total_attempts_per_ip' => [],
         'success' => [],
     ];
 
-    $attackerIps = pickN(ATTACKER_IP_POOL, $attackerCount);
+    $attackerIps = pickN(
+        !empty($GLOBALS['pulse_attacker_ips']) ? $GLOBALS['pulse_attacker_ips'] : ATTACKER_IP_POOL,
+        $attackerCount
+    );
     $startTs = $startTime->getTimestamp();
     $endTs = $endTime->getTimestamp();
 
@@ -78,7 +85,7 @@ function generateBruteforce($attackerCount, $difficulty, $startTime, $endTime) {
                 $lines[] = [
                     'timestamp' => clone $ts,
                     'line' => formatLogLine(
-                        $ip, $ts, 'GET', '/account/login.php', 'HTTP/1.1',
+                        $ip, $ts, 'GET', $loginEndpoint, 'HTTP/1.1',
                         200, randBetween(1024, 2048),
                         'https://brightmall.local/', $ua
                     ),
@@ -109,7 +116,7 @@ function generateBruteforce($attackerCount, $difficulty, $startTime, $endTime) {
             $lines[] = [
                 'timestamp' => clone $ts,
                 'line' => formatLogLine(
-                    $ip, $ts, 'POST', '/account/login.php', 'HTTP/1.1',
+                    $ip, $ts, 'POST', $loginEndpoint, 'HTTP/1.1',
                     $status, $size,
                     'https://brightmall.local/account/login.php', $ua
                 ),
@@ -176,7 +183,7 @@ function generateBruteforce($attackerCount, $difficulty, $startTime, $endTime) {
             $lines[] = [
                 'timestamp' => clone $ts,
                 'line' => formatLogLine(
-                    $legitIp, $ts, 'POST', '/account/login.php', 'HTTP/1.1',
+                    $legitIp, $ts, 'POST', $loginEndpoint, 'HTTP/1.1',
                     200, randBetween(1800, 2400),
                     'https://brightmall.local/account/login.php', $legitUa
                 ),
@@ -190,7 +197,7 @@ function generateBruteforce($attackerCount, $difficulty, $startTime, $endTime) {
         $lines[] = [
             'timestamp' => clone $ts,
             'line' => formatLogLine(
-                $legitIp, $ts, 'POST', '/account/login.php', 'HTTP/1.1',
+                $legitIp, $ts, 'POST', $loginEndpoint, 'HTTP/1.1',
                 302, 0,
                 'https://brightmall.local/account/login.php', $legitUa
             ),

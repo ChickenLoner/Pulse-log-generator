@@ -104,15 +104,31 @@ function getLfiPayloads($difficulty = 'medium') {
  */
 function generateLfi($attackerCount, $difficulty, $startTime, $endTime) {
     $lines = [];
+
+    // Read overrides
+    $endpoint = getOverride('lfi_endpoint', '/page.php');
+    $param = getOverride('lfi_param', 'file');
+    $customPayloads = getOverride('lfi_payloads', null);
+
     $answers = [
         'type' => 'LFI (Local File Inclusion)',
-        'vector' => '/page.php?file=',
+        'vector' => $endpoint . '?' . $param . '=',
         'attacker_ips' => [],
         'targeted_files' => [],
     ];
 
-    $attackerIps = pickN(ATTACKER_IP_POOL, $attackerCount);
-    $payloads = getLfiPayloads($difficulty);
+    $attackerIps = pickN(
+        !empty($GLOBALS['pulse_attacker_ips']) ? $GLOBALS['pulse_attacker_ips'] : ATTACKER_IP_POOL,
+        $attackerCount
+    );
+
+    // Use custom payloads if provided, otherwise use difficulty-based defaults
+    if ($customPayloads && is_array($customPayloads) && count($customPayloads) > 0) {
+        $payloads = array_map(fn($p) => [$p, 200], $customPayloads);
+    } else {
+        $payloads = getLfiPayloads($difficulty);
+    }
+
     $startTs = $startTime->getTimestamp();
     $endTs = $endTime->getTimestamp();
 
@@ -162,7 +178,7 @@ function generateLfi($attackerCount, $difficulty, $startTime, $endTime) {
         $selectedPayloads = array_slice($selectedPayloads, 0, $payloadCount);
 
         foreach ($selectedPayloads as $payload) {
-            $path = '/page.php?file=' . $payload[0];
+            $path = $endpoint . '?' . $param . '=' . $payload[0];
             $status = $payload[1];
 
             // Track unique targeted files for answer key

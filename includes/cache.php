@@ -120,6 +120,12 @@ function getShellParams($difficulty) {
  */
 function generateWebshell($attackerCount, $difficulty, $startTime, $endTime) {
     $lines = [];
+
+    // Read overrides
+    $customShellPath = getOverride('shell_path', null);
+    $customShellParam = getOverride('shell_param', null);
+    $customCommands = getOverride('shell_commands', null);
+
     $answers = [
         'type' => 'Webshell',
         'shell_paths' => [],
@@ -127,10 +133,32 @@ function generateWebshell($attackerCount, $difficulty, $startTime, $endTime) {
         'commands_executed' => [],
     ];
 
-    $attackerIps = pickN(ATTACKER_IP_POOL, $attackerCount);
-    $commands = getWebshellCommands($difficulty);
-    $shellPaths = getShellPaths($difficulty);
-    $shellParams = getShellParams($difficulty);
+    $attackerIps = pickN(
+        !empty($GLOBALS['pulse_attacker_ips']) ? $GLOBALS['pulse_attacker_ips'] : ATTACKER_IP_POOL,
+        $attackerCount
+    );
+
+    // Use custom commands if provided
+    if ($customCommands && is_array($customCommands) && count($customCommands) > 0) {
+        $commands = array_map(fn($c) => [$c, urlencode($c)], $customCommands);
+    } else {
+        $commands = getWebshellCommands($difficulty);
+    }
+
+    // Use custom shell path if provided
+    if ($customShellPath) {
+        $shellPaths = [$customShellPath];
+    } else {
+        $shellPaths = getShellPaths($difficulty);
+    }
+
+    // Use custom param if provided
+    if ($customShellParam) {
+        $shellParams = [$customShellParam];
+    } else {
+        $shellParams = getShellParams($difficulty);
+    }
+
     $startTs = $startTime->getTimestamp();
     $endTs = $endTime->getTimestamp();
 

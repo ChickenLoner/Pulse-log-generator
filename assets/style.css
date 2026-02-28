@@ -114,6 +114,171 @@ body::before {
     font-family: var(--font-mono);
 }
 
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ============ Mode Toggle ============ */
+.btn-mode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.btn-mode:hover {
+    border-color: var(--text-dim);
+}
+
+.btn-mode.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.btn-mode.active .mode-label:last-of-type {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.btn-mode:not(.active) .mode-label:first-of-type {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.mode-switch {
+    width: 28px;
+    height: 16px;
+    background: var(--border);
+    border-radius: 8px;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.btn-mode.active .mode-switch {
+    background: var(--accent);
+}
+
+.mode-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s;
+}
+
+.btn-mode.active .mode-dot {
+    left: 14px;
+    background: var(--bg-base);
+}
+
+.mode-label {
+    transition: color 0.2s;
+}
+
+/* ============ Advanced Fields ============ */
+.scenario-wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+.adv-fields {
+    padding: 12px 16px 16px;
+    margin-top: -1px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 1px dashed var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 500px; }
+}
+
+.adv-row {
+    margin-bottom: 10px;
+}
+
+.adv-row:last-child {
+    margin-bottom: 0;
+}
+
+.adv-row label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: var(--font-mono);
+    margin-bottom: 4px;
+}
+
+.adv-hint {
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-dim);
+    font-weight: 400;
+}
+
+.adv-input {
+    width: 100%;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.adv-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.adv-textarea {
+    width: 100%;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    outline: none;
+    resize: vertical;
+    min-height: 60px;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+}
+
+.adv-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.adv-textarea::placeholder,
+.adv-input::placeholder {
+    color: var(--text-dim);
+}
+
 .status-dot {
     width: 8px;
     height: 8px;
@@ -161,7 +326,7 @@ body::before {
 /* ============ Log Type Selector ============ */
 .logtype-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
 }
 
@@ -205,6 +370,9 @@ body::before {
     background: var(--accent-dim);
     border-radius: var(--radius);
     color: var(--accent);
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--font-mono);
 }
 
 .logtype-card:not(.active) .lt-icon {
@@ -271,11 +439,13 @@ body::before {
     background: var(--accent-dim);
     border-radius: var(--radius);
     color: var(--accent);
+    font-size: 18px;
 }
 
 .scenario-card input:not(:checked) ~ .card-inner .card-icon {
     background: var(--bg-panel);
     color: var(--text-dim);
+    filter: grayscale(0.8);
 }
 
 .card-text {
@@ -662,6 +832,12 @@ pre {
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 860px) {
+    .logtype-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 

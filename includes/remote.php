@@ -209,13 +209,22 @@ function generateSshBruteforce($attackerCount, $difficulty, $startTime, $endTime
         'success' => [],
     ];
 
-    $attackerIps = pickN(ATTACKER_IP_POOL, $attackerCount);
+    $attackerIps = pickN(
+        !empty($GLOBALS['pulse_attacker_ips']) ? $GLOBALS['pulse_attacker_ips'] : ATTACKER_IP_POOL,
+        $attackerCount
+    );
     $startTs = $startTime->getTimestamp();
     $endTs = $endTime->getTimestamp();
-    $hostname = SSH_HOSTNAME;
-    $allUsers = SSH_BRUTE_USERS;
+    $hostname = getOverride('ssh_hostname', SSH_HOSTNAME);
+
+    // Custom brute usernames
+    $customBruteUsers = getOverride('ssh_brute_users', null);
+    $allUsers = ($customBruteUsers && is_array($customBruteUsers)) ? $customBruteUsers : SSH_BRUTE_USERS;
     $invalidUsers = SSH_INVALID_USERS;
     $validUsers = SSH_LEGIT_USERS;
+
+    // Custom compromised user
+    $forcedCompromisedUser = getOverride('ssh_compromised_user', null);
 
     $answers['attacker_ips'] = $attackerIps;
 
@@ -243,7 +252,7 @@ function generateSshBruteforce($attackerCount, $difficulty, $startTime, $endTime
         $currentTs = $attackStart;
 
         // Pick a target user for the eventual success (one of the valid users)
-        $targetUser = pick($validUsers);
+        $targetUser = $forcedCompromisedUser ?: pick($validUsers);
         $successAttempt = mt_rand(intval($attempts * 0.75), $attempts - 1);
 
         $usernamesTried = [];

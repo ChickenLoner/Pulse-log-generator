@@ -1,7 +1,8 @@
 <?php
 /**
  * Pulse Generator — Generate Endpoint
- * Accepts POST config, builds logs, returns as download or JSON
+ * Routes to the correct generator based on log_type
+ * Supports advanced overrides via $GLOBALS['pulse_overrides']
  */
 
 header('Content-Type: application/json');
@@ -12,15 +13,17 @@ require_once __DIR__ . '/includes/pages.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/cache.php';
 require_once __DIR__ . '/includes/remote.php';
+require_once __DIR__ . '/includes/proxy.php';
+require_once __DIR__ . '/includes/service.php';
+require_once __DIR__ . '/includes/events.php';
+require_once __DIR__ . '/includes/netflow.php';
 
-// Only POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
     exit;
 }
 
-// Parse JSON body
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     http_response_code(400);
@@ -28,118 +31,192 @@ if (!$input) {
     exit;
 }
 
-// Extract config with defaults
 $logType        = $input['log_type'] ?? 'apache';
 $scenarios      = $input['scenarios'] ?? [];
-$noiseLines     = intval($input['noise_lines'] ?? 500);
-$difficulty     = $input['difficulty'] ?? 'medium';
-$attackerCount  = intval($input['attacker_count'] ?? 1);
-$timeSpanHours  = intval($input['time_span_hours'] ?? 6);
+$noiseLines     = max(50, min(5000, intval($input['noise_lines'] ?? 500)));
+$difficulty     = in_array($input['difficulty'] ?? '', ['easy', 'medium', 'hard']) ? $input['difficulty'] : 'medium';
+$attackerCount  = max(1, min(4, intval($input['attacker_count'] ?? 1)));
+$timeSpanHours  = max(1, min(48, intval($input['time_span_hours'] ?? 6)));
 $outputMode     = $input['output_mode'] ?? 'download';
 
-// Validate
-$noiseLines = max(50, min(5000, $noiseLines));
-$attackerCount = max(1, min(4, $attackerCount));
-$timeSpanHours = max(1, min(48, $timeSpanHours));
-$difficulty = in_array($difficulty, ['easy', 'medium', 'hard']) ? $difficulty : 'medium';
-$logType = in_array($logType, ['apache', 'ssh']) ? $logType : 'apache';
+$validTypes = ['apache', 'nginx', 'iis', 'ssh', 'windows', 'firewall'];
+$logType = in_array($logType, $validTypes) ? $logType : 'apache';
 
-// Time window
+// ============================
+// Store overrides globally so generators can read them
+// ============================
+$GLOBALS['pulse_overrides'] = $input['overrides'] ?? [];
+
+// Override attacker IPs if custom ones provided
+if (!empty($GLOBALS['pulse_overrides']['custom_attacker_ips'])) {
+    $customIps = $GLOBALS['pulse_overrides']['custom_attacker_ips'];
+    // Validate IPs
+    $validIps = array_filter($customIps, fn($ip) => filter_var($ip, FILTER_VALIDATE_IP));
+    if (!empty($validIps)) {
+        $GLOBALS['pulse_attacker_ips'] = array_values($validIps);
+    }
+}
+
+/**
+ * Helper: get attacker IPs (respects custom override)
+ */
+function getAttackerIps($count) {
+    if (!empty($GLOBALS['pulse_attacker_ips'])) {
+        $pool = $GLOBALS['pulse_attacker_ips'];
+    } else {
+        $pool = ATTACKER_IP_POOL;
+    }
+    return pickN($pool, $count);
+}
+
 $endTime = new DateTime();
 $startTime = clone $endTime;
 $startTime->modify("-{$timeSpanHours} hours");
 
-// Collect all log lines
 $allLines = [];
 $allAnswers = [];
+$filePrefix = '';
+$fileHeader = '';
 
-// ============================================================
-// Apache access.log generation
-// ============================================================
+// ============================
+// Apache
+// ============================
 if ($logType === 'apache') {
-    $noiseResult = generateNoise($noiseLines, $startTime, $endTime);
-    $allLines = array_merge($allLines, $noiseResult);
-
+    $allLines = array_merge($allLines, generateNoise($noiseLines, $startTime, $endTime));
     if (in_array('lfi', $scenarios)) {
-        $lfiResult = generateLfi($attackerCount, $difficulty, $startTime, $endTime);
-        $allLines = array_merge($allLines, $lfiResult['lines']);
-        $allAnswers['lfi'] = $lfiResult['answers'];
+        $r = generateLfi($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['lfi'] = $r['answers'];
     }
-
     if (in_array('bruteforce', $scenarios)) {
-        $bfResult = generateBruteforce($attackerCount, $difficulty, $startTime, $endTime);
-        $allLines = array_merge($allLines, $bfResult['lines']);
-        $allAnswers['bruteforce'] = $bfResult['answers'];
+        $r = generateBruteforce($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['bruteforce'] = $r['answers'];
     }
-
     if (in_array('webshell', $scenarios)) {
-        $wsResult = generateWebshell($attackerCount, $difficulty, $startTime, $endTime);
-        $allLines = array_merge($allLines, $wsResult['lines']);
-        $allAnswers['webshell'] = $wsResult['answers'];
+        $r = generateWebshell($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['webshell'] = $r['answers'];
     }
-
-    $defaultFilename = 'access';
+    $filePrefix = 'access';
 }
-
-// ============================================================
-// SSH auth.log generation
-// ============================================================
+// ============================
+// Nginx
+// ============================
+elseif ($logType === 'nginx') {
+    $allLines = array_merge($allLines, generateNginxNoise($noiseLines, $startTime, $endTime));
+    if (in_array('lfi', $scenarios)) {
+        $r = generateNginxLfi($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['lfi'] = $r['answers'];
+    }
+    if (in_array('bruteforce', $scenarios)) {
+        $r = generateNginxBruteforce($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['bruteforce'] = $r['answers'];
+    }
+    if (in_array('webshell', $scenarios)) {
+        $r = generateNginxWebshell($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['webshell'] = $r['answers'];
+    }
+    $filePrefix = 'nginx_access';
+}
+// ============================
+// IIS
+// ============================
+elseif ($logType === 'iis') {
+    $fileHeader = getIisHeader($startTime);
+    $allLines = array_merge($allLines, generateIisNoise($noiseLines, $startTime, $endTime));
+    if (in_array('lfi', $scenarios)) {
+        $r = generateIisLfi($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['lfi'] = $r['answers'];
+    }
+    if (in_array('bruteforce', $scenarios)) {
+        $r = generateIisBruteforce($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['bruteforce'] = $r['answers'];
+    }
+    if (in_array('webshell', $scenarios)) {
+        $r = generateIisWebshell($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['webshell'] = $r['answers'];
+    }
+    $filePrefix = 'u_ex' . date('ymd');
+}
+// ============================
+// SSH
+// ============================
 elseif ($logType === 'ssh') {
-    $noiseResult = generateSshNoise($noiseLines, $startTime, $endTime);
-    $allLines = array_merge($allLines, $noiseResult);
-
+    $allLines = array_merge($allLines, generateSshNoise($noiseLines, $startTime, $endTime));
     if (in_array('ssh_bruteforce', $scenarios)) {
-        $sshBfResult = generateSshBruteforce($attackerCount, $difficulty, $startTime, $endTime);
-        $allLines = array_merge($allLines, $sshBfResult['lines']);
-        $allAnswers['ssh_bruteforce'] = $sshBfResult['answers'];
+        $r = generateSshBruteforce($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['ssh_bruteforce'] = $r['answers'];
     }
-
     if (in_array('ssh_spray', $scenarios)) {
-        $sprayResult = generateSshSpray($attackerCount, $difficulty, $startTime, $endTime);
-        $allLines = array_merge($allLines, $sprayResult['lines']);
-        $allAnswers['ssh_spray'] = $sprayResult['answers'];
+        $r = generateSshSpray($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['ssh_spray'] = $r['answers'];
     }
-
-    $defaultFilename = 'auth';
+    $filePrefix = 'auth';
+}
+// ============================
+// Windows Event Log
+// ============================
+elseif ($logType === 'windows') {
+    $fileHeader = getWinEventHeader() . "\n";
+    $allLines = array_merge($allLines, generateWinNoise($noiseLines, $startTime, $endTime));
+    if (in_array('win_bruteforce', $scenarios)) {
+        $r = generateWinBruteforce($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['win_bruteforce'] = $r['answers'];
+    }
+    if (in_array('win_postexploit', $scenarios)) {
+        $r = generateWinPostExploit($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['win_postexploit'] = $r['answers'];
+    }
+    $filePrefix = 'Security';
+}
+// ============================
+// Firewall
+// ============================
+elseif ($logType === 'firewall') {
+    $allLines = array_merge($allLines, generateFwNoise($noiseLines, $startTime, $endTime));
+    if (in_array('fw_portscan', $scenarios)) {
+        $r = generateFwPortScan($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['fw_portscan'] = $r['answers'];
+    }
+    if (in_array('fw_beacon', $scenarios)) {
+        $r = generateFwBeacon($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['fw_beacon'] = $r['answers'];
+    }
+    if (in_array('fw_exfil', $scenarios)) {
+        $r = generateFwExfil($attackerCount, $difficulty, $startTime, $endTime);
+        $allLines = array_merge($allLines, $r['lines']); $allAnswers['fw_exfil'] = $r['answers'];
+    }
+    $filePrefix = 'firewall';
 }
 
-// Sort all lines chronologically
-usort($allLines, function($a, $b) {
-    return $a['timestamp'] <=> $b['timestamp'];
-});
+// Sort chronologically
+usort($allLines, fn($a, $b) => $a['timestamp'] <=> $b['timestamp']);
 
-// Build final log content
-$logContent = implode("\n", array_map(fn($l) => $l['line'], $allLines)) . "\n";
+$logContent = $fileHeader . implode("\n", array_map(fn($l) => $l['line'], $allLines)) . "\n";
 $totalLines = count($allLines);
+$ext = ($logType === 'windows') ? '.csv' : '.log';
 
 if ($outputMode === 'preview') {
     $logLines = explode("\n", trim($logContent));
-    $previewHead = array_slice($logLines, 0, 20);
-    $previewTail = array_slice($logLines, -10);
     echo json_encode([
         'success' => true,
         'total_lines' => $totalLines,
-        'preview_head' => $previewHead,
-        'preview_tail' => $previewTail,
+        'preview_head' => array_slice($logLines, 0, 20),
+        'preview_tail' => array_slice($logLines, -10),
         'answers' => $allAnswers,
     ]);
 } else {
-    $filename = $defaultFilename . '_' . date('Ymd_His') . '.log';
+    $filename = $filePrefix . '_' . date('Ymd_His') . $ext;
     $tmpDir = __DIR__ . '/tmp';
-    if (!is_dir($tmpDir)) {
-        mkdir($tmpDir, 0755, true);
-    }
-    $filepath = $tmpDir . '/' . $filename;
-    file_put_contents($filepath, $logContent);
+    if (!is_dir($tmpDir)) mkdir($tmpDir, 0755, true);
+    file_put_contents($tmpDir . '/' . $filename, $logContent);
 
-    $answerFile = $tmpDir . '/' . str_replace('.log', '_answers.json', $filename);
-    file_put_contents($answerFile, json_encode($allAnswers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    $answerFilename = str_replace($ext, '_answers.json', $filename);
+    file_put_contents($tmpDir . '/' . $answerFilename, json_encode($allAnswers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
     echo json_encode([
         'success' => true,
         'total_lines' => $totalLines,
         'download_url' => 'download.php?f=' . urlencode($filename),
-        'answer_url' => 'download.php?f=' . urlencode(basename($answerFile)),
+        'answer_url' => 'download.php?f=' . urlencode($answerFilename),
         'answers' => $allAnswers,
     ]);
 }

