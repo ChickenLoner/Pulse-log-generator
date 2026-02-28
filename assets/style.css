@@ -158,6 +158,78 @@ body::before {
     gap: 10px;
 }
 
+/* ============ Log Type Selector ============ */
+.logtype-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.logtype-card {
+    cursor: pointer;
+    display: block;
+}
+
+.logtype-card input {
+    display: none;
+}
+
+.lt-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+}
+
+.lt-inner:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--text-dim);
+}
+
+.logtype-card.active .lt-inner {
+    background: var(--bg-card-active);
+    border-color: var(--border-active);
+}
+
+.lt-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-dim);
+    border-radius: var(--radius);
+    color: var(--accent);
+}
+
+.logtype-card:not(.active) .lt-icon {
+    background: var(--bg-panel);
+    color: var(--text-dim);
+}
+
+.lt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.lt-text strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.lt-text span {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
 .scenario-card {
     cursor: pointer;
     display: block;
@@ -578,6 +650,9 @@ pre {
 /* ============ Responsive ============ */
 @media (max-width: 640px) {
     .config-grid {
+        grid-template-columns: 1fr;
+    }
+    .logtype-grid {
         grid-template-columns: 1fr;
     }
     .action-row {

@@ -137,6 +137,88 @@ define('REFERERS', [
 // HTTP versions
 define('HTTP_VERSIONS', ['HTTP/1.1', 'HTTP/1.1', 'HTTP/1.1', 'HTTP/2.0']);
 
+// ============================================================
+// SSH Configuration
+// ============================================================
+
+// Hostname for syslog
+define('SSH_HOSTNAME', 'brightmall-web01');
+
+// Legitimate SSH users (real users with accounts)
+define('SSH_LEGIT_USERS', [
+    'deploy', 'admin', 'webmaster', 'sysadmin', 'jenkins', 'backup',
+    'devops', 'monitoring', 'appuser', 'ubuntu',
+]);
+
+// Legit SSH source IPs (internal / jump hosts)
+define('SSH_LEGIT_IPS', [
+    '10.0.0.5', '10.0.0.10', '10.0.0.25',
+    '172.16.1.100', '172.16.1.101',
+    '192.168.10.5', '192.168.10.20',
+]);
+
+// Usernames attackers try during bruteforce
+define('SSH_BRUTE_USERS', [
+    'root', 'admin', 'test', 'user', 'guest', 'ubuntu', 'oracle',
+    'postgres', 'mysql', 'ftp', 'www-data', 'pi', 'ec2-user',
+    'deploy', 'git', 'nagios', 'tomcat', 'jenkins', 'ansible',
+    'vagrant', 'docker', 'redis', 'hadoop', 'elastic', 'kafka',
+    'support', 'info', 'mail', 'webadmin', 'ftpuser', 'backup',
+    'testuser', 'demo', 'developer', 'sysadmin', 'operator',
+]);
+
+// Invalid usernames attackers try (will generate "Invalid user" messages)
+define('SSH_INVALID_USERS', [
+    'test', 'guest', 'user', 'oracle', 'postgres', 'ftp',
+    'pi', 'ec2-user', 'git', 'nagios', 'tomcat', 'ansible',
+    'vagrant', 'docker', 'redis', 'hadoop', 'elastic', 'kafka',
+    'support', 'info', 'mail', 'ftpuser', 'testuser', 'demo',
+    'developer', 'operator',
+]);
+
+// SSH port
+define('SSH_PORT', 22);
+
+// SSH client versions used by legit users
+define('SSH_LEGIT_CLIENTS', [
+    'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6',
+    'SSH-2.0-OpenSSH_9.0p1 Ubuntu-1ubuntu8.7',
+    'SSH-2.0-OpenSSH_9.3p1 Ubuntu-1ubuntu3.3',
+    'SSH-2.0-PuTTY_Release_0.80',
+    'SSH-2.0-OpenSSH_9.6',
+]);
+
+// SSH client versions used by attackers
+define('SSH_ATTACKER_CLIENTS', [
+    'SSH-2.0-libssh2_1.10.0',
+    'SSH-2.0-paramiko_3.4.0',
+    'SSH-2.0-Go',
+    'SSH-2.0-libssh-0.9.7',
+    'SSH-2.0-PUTTY',
+    'SSH-2.0-OpenSSH_8.2p1',
+]);
+
+// Syslog services that appear in auth.log noise
+define('SYSLOG_SERVICES', [
+    'systemd-logind', 'CRON', 'sudo', 'su', 'polkitd',
+]);
+
+/**
+ * Format a syslog-style auth.log line
+ * Format: Mon DD HH:MM:SS hostname service[pid]: message
+ */
+function formatAuthLogLine($timestamp, $hostname, $service, $pid, $message) {
+    $dateStr = $timestamp->format('M  j H:i:s');
+    // Fix single-digit day padding (syslog uses space padding)
+    $day = (int)$timestamp->format('j');
+    if ($day < 10) {
+        $dateStr = $timestamp->format('M') . '  ' . $day . $timestamp->format(' H:i:s');
+    } else {
+        $dateStr = $timestamp->format('M j H:i:s');
+    }
+    return sprintf('%s %s %s[%d]: %s', $dateStr, $hostname, $service, $pid, $message);
+}
+
 /**
  * Helper: pick random element from array
  */

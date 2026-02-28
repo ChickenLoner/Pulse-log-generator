@@ -32,11 +32,57 @@
 
         <!-- Main Content -->
         <main class="main">
+
+            <!-- Log Type Selector -->
+            <section class="panel">
+                <h2 class="panel-title">Log Type</h2>
+                <p class="panel-desc">Choose which log format to generate.</p>
+                <div class="logtype-grid">
+                    <label class="logtype-card active" data-logtype="apache">
+                        <input type="radio" name="log_type" value="apache" checked>
+                        <div class="lt-inner">
+                            <div class="lt-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="2" y1="12" x2="22" y2="12"/>
+                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                                </svg>
+                            </div>
+                            <div class="lt-text">
+                                <strong>Apache access.log</strong>
+                                <span>Web server — Combined Log Format</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="logtype-card" data-logtype="ssh">
+                        <input type="radio" name="log_type" value="ssh">
+                        <div class="lt-inner">
+                            <div class="lt-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                    <line x1="8" y1="21" x2="16" y2="21"/>
+                                    <line x1="12" y1="17" x2="12" y2="21"/>
+                                    <polyline points="7,10 9,12 7,14"/>
+                                    <line x1="11" y1="14" x2="15" y2="14"/>
+                                </svg>
+                            </div>
+                            <div class="lt-text">
+                                <strong>SSH auth.log</strong>
+                                <span>Linux — syslog authentication log</span>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </section>
+
             <!-- Scenario Selection -->
             <section class="panel">
                 <h2 class="panel-title">Attack Scenarios</h2>
                 <p class="panel-desc">Select which attack patterns to embed in the generated log.</p>
-                <div class="scenario-grid">
+
+                <!-- Apache Scenarios -->
+                <div class="scenario-grid" id="scenarios-apache">
                     <label class="scenario-card" data-scenario="lfi">
                         <input type="checkbox" name="scenario" value="lfi" checked>
                         <div class="card-inner">
@@ -84,6 +130,44 @@
                             <div class="card-text">
                                 <strong>Webshell</strong>
                                 <span>RCE via <code>.cache-img.php</code> in uploads</span>
+                            </div>
+                            <div class="check-mark">✓</div>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- SSH Scenarios -->
+                <div class="scenario-grid" id="scenarios-ssh" style="display:none;">
+                    <label class="scenario-card" data-scenario="ssh_bruteforce">
+                        <input type="checkbox" name="scenario_ssh" value="ssh_bruteforce" checked>
+                        <div class="card-inner">
+                            <div class="card-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    <circle cx="12" cy="16" r="1"/>
+                                </svg>
+                            </div>
+                            <div class="card-text">
+                                <strong>SSH Bruteforce</strong>
+                                <span>Rapid credential stuffing against <code>sshd</code> — username/password spray with <code>Failed password</code> floods</span>
+                            </div>
+                            <div class="check-mark">✓</div>
+                        </div>
+                    </label>
+
+                    <label class="scenario-card" data-scenario="ssh_spray">
+                        <input type="checkbox" name="scenario_ssh" value="ssh_spray">
+                        <div class="card-inner">
+                            <div class="card-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                    <line x1="9" y1="12" x2="15" y2="12"/>
+                                </svg>
+                            </div>
+                            <div class="card-text">
+                                <strong>Password Spray</strong>
+                                <span>Low & slow — one password across many users per round, long delays between rounds</span>
                             </div>
                             <div class="check-mark">✓</div>
                         </div>
@@ -145,7 +229,7 @@
                 <h2 class="panel-title">Output</h2>
                 <div class="output-stats" id="output-stats"></div>
                 <div class="output-actions" id="output-actions"></div>
-                
+
                 <!-- Preview -->
                 <div id="preview-section" style="display:none;">
                     <div class="preview-block">

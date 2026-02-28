@@ -22,12 +22,47 @@
     const noiseSlider = document.getElementById('noise_lines');
     const noiseOutput = document.getElementById('noise_lines_val');
 
-    // Sync slider value
+    // Scenario containers
+    const scenariosApache = document.getElementById('scenarios-apache');
+    const scenariosSsh = document.getElementById('scenarios-ssh');
+
+    // Log type cards
+    const logTypeCards = document.querySelectorAll('.logtype-card');
+
+    // Current log type
+    let currentLogType = 'apache';
+
+    // ============ Log Type Switching ============
+    logTypeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const radio = card.querySelector('input[type="radio"]');
+            radio.checked = true;
+            currentLogType = radio.value;
+
+            // Update active state
+            logTypeCards.forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+
+            // Toggle scenario grids
+            if (currentLogType === 'apache') {
+                scenariosApache.style.display = '';
+                scenariosSsh.style.display = 'none';
+            } else if (currentLogType === 'ssh') {
+                scenariosApache.style.display = 'none';
+                scenariosSsh.style.display = '';
+            }
+
+            // Hide previous output
+            outputPanel.style.display = 'none';
+        });
+    });
+
+    // ============ Slider ============
     noiseSlider.addEventListener('input', () => {
         noiseOutput.textContent = noiseSlider.value;
     });
 
-    // Toggle answer key
+    // ============ Answer Key Toggle ============
     let answersVisible = false;
     btnToggleAnswers.addEventListener('click', () => {
         answersVisible = !answersVisible;
@@ -42,11 +77,19 @@
      */
     function getConfig() {
         const scenarios = [];
-        document.querySelectorAll('input[name="scenario"]:checked').forEach(cb => {
-            scenarios.push(cb.value);
-        });
+
+        if (currentLogType === 'apache') {
+            document.querySelectorAll('#scenarios-apache input[name="scenario"]:checked').forEach(cb => {
+                scenarios.push(cb.value);
+            });
+        } else if (currentLogType === 'ssh') {
+            document.querySelectorAll('#scenarios-ssh input[name="scenario_ssh"]:checked').forEach(cb => {
+                scenarios.push(cb.value);
+            });
+        }
 
         return {
+            log_type: currentLogType,
             scenarios: scenarios,
             noise_lines: parseInt(noiseSlider.value),
             difficulty: document.getElementById('difficulty').value,
@@ -66,7 +109,7 @@
             return;
         }
 
-        config.output_mode = mode; // 'download' or 'preview'
+        config.output_mode = mode;
 
         // UI loading state
         btnGenerate.disabled = true;
@@ -90,8 +133,12 @@
             // Show output panel
             outputPanel.style.display = 'block';
 
+            // File label
+            const logLabel = config.log_type === 'apache' ? 'access.log' : 'auth.log';
+
             // Stats
             outputStats.innerHTML = `
+                <span class="stat-item">Type: <strong>${logLabel}</strong></span>
                 <span class="stat-item">Lines: <strong>${data.total_lines.toLocaleString()}</strong></span>
                 <span class="stat-item">Scenarios: <strong>${config.scenarios.join(', ')}</strong></span>
                 <span class="stat-item">Difficulty: <strong>${config.difficulty}</strong></span>
@@ -106,7 +153,7 @@
                             <polyline points="7,10 12,15 17,10"/>
                             <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
-                        Download access.log
+                        Download ${logLabel}
                     </a>
                     <a href="${data.answer_url}" class="btn-download-answer" download>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -133,7 +180,6 @@
             if (data.answers && Object.keys(data.answers).length > 0) {
                 answerSection.style.display = 'block';
                 answerJson.textContent = JSON.stringify(data.answers, null, 2);
-                // Reset visibility
                 answersVisible = false;
                 answerContent.style.display = 'none';
                 btnToggleAnswers.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Show Answer Key';
